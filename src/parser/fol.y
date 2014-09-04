@@ -101,7 +101,7 @@
 // This must be in a %code {} section since bison 2.4 so it appears before tokens
 // The comments following { and } must remain intact as they
 // are used to insert the proper directive in replacefoly.pl
-%code { //bisonopencode
+%{ //bisonopencode
 #include "fol.h"
 #include "follex.cpp"
 
@@ -109,7 +109,7 @@
 int folDbg = 0;
 //int folDbg = 1;
 //int folDbg = 2;
-} //bisonclosecode
+%} //bisonclosecode
 
 %% 
 
