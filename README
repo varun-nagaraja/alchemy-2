@@ -25,20 +25,26 @@ $ sudo apt-get install bison flex perl
 ### Gurobi
 Gurobi is a commercial Integer Linear Program solver which demonstrates very high computational speeds.
 
-You need to first obtain a license (Academic or otherwise) to be able to use it.
+Installation: [OSX instructions](http://www.gurobi.com/documentation/5.6/quick-start-guide/installation_mac_os), [Linux instructions](http://www.gurobi.com/documentation/5.6/quick-start-guide/installation_linux)
+
+You also need to obtain a license (Academic or otherwise) to be able to use it.
 
 ## Building
 On OSX
 ```
 $ cd path/to/alchemy-2/src
 $ cp makefile_osx makefile
-$ make
 ```
 
 On Linux
 ```
 $ cd path/to/alchemy-2/src
 $ cp makefile_linux makefile
+```
+
+Modify the makefile to set the Gurobi directory if it is not installed in the default places.
+
+```
 $ make
 ```
 
