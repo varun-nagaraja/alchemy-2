@@ -92,6 +92,8 @@ char* aOpenWorldPredsStr = NULL;
   // MAP Inference
 bool  amapPos = false;
 bool  amapAll = false;
+  //Gurobi ILP inference
+bool aILPGurobi = false;
   // Gibbs Sampling
 bool  agibbsInfer = false;
   // MC-SAT

@@ -107,6 +107,9 @@ ARGS ARGS::Args[] =
   ARGS("a", ARGS::Tog, amapAll, 
        "Run MAP inference and show 0/1 results for all query atoms."),
 
+  ARGS("ilp", ARGS::Tog, aILPGurobi,
+       "Run inference using Gurobi ILP solver."),
+
   ARGS("p", ARGS::Tog, agibbsInfer, 
        "Run inference using MCMC (Gibbs sampling) and return probabilities "
        "for all query atoms."),

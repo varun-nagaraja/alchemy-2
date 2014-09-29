@@ -85,6 +85,7 @@
 #include "hvariablestate.h"
 #include "hmcsat.h"
 #include "lbfgsp.h"
+#include "ilp_gurobi.h"
 
 // Variables for holding inference command line args are in inferenceargs.h
 
@@ -142,32 +143,32 @@ bool createComLineQueryPreds(const string& queryPredsStr,
                              GroundPredicateHashArray* const & knownQueries,
                              Array<int>* const & allPredGndingsAreQueries,
                              bool printToFile, ostream& out, bool amapPos,
-                            const GroundPredicateHashArray* const & trueQueries,
+                             const GroundPredicateHashArray* const & trueQueries,
                              const Array<double>* const & trueProbs,
                              Array<Array<Predicate* >* >* queryConjs)
 {
   if (queryPredsStr.length() == 0) return true;
   string predConjs = Util::trim(queryPredsStr);
 
-    //replace the comma or semi-colon between query predicates with '\n'
+  //replace the comma or semi-colon between query predicates with '\n'
   int balparen = 0;
   for (unsigned int i = 0; i < predConjs.length(); i++)
   {
     if (predConjs.at(i)=='(')                     balparen++;
     else if (predConjs.at(i)==')')                balparen--;
     else if ((predConjs.at(i)==';' || predConjs.at(i)==',') &&
-             balparen==0) predConjs.at(i) = '\n';
+        balparen==0) predConjs.at(i) = '\n';
   }
-  
+
   bool ret = true;
   string predConj;
   istringstream iss(predConjs);
   char delimit[2]; delimit[1] = '\0';
 
-    // for each query formula
+  // for each query formula
   while (getline(iss, predConj))
   {
-      // replace the ^ with '\n'
+    // replace the ^ with '\n'
     int balparen = 0;
     for (unsigned int i = 0; i < predConj.length(); i++)
     {
@@ -188,7 +189,7 @@ bool createComLineQueryPreds(const string& queryPredsStr,
 
     Array<Predicate* >* predArray = new Array<Predicate*>;
     if (queryConjs) queryConjs->append(predArray);
-      // for each query pred on command line
+    // for each query pred on command line
     while (getline(iss2, pred))
     {
       pred = Util::trim(pred);
@@ -198,42 +199,42 @@ bool createComLineQueryPreds(const string& queryPredsStr,
       cur = 0;
       bool negated = false;
 
-        // find if pred is negated
+      // find if pred is negated
       if (pred.at(0) == '!')
       {
         negated = true;
         pred.at(0) = ' ';
         pred = Util::trim(pred);
       }
-        // get predicate name
+      // get predicate name
       if (!Util::substr(pred, cur, predName, "("))
       {
         predName = pred;
         onlyPredName = true;
       }
-    
-        // Predicate must be in the domain
+
+      // Predicate must be in the domain
       ptemplate = domain->getPredicateTemplate(predName.c_str());
       if (ptemplate == NULL)
       {
         cout << "ERROR: Cannot find command line query predicate" << predName 
-             << " in domain." << endl;
+            << " in domain." << endl;
         ret = false;
         continue;
       }
       Predicate ppred(ptemplate);
 
-        // if the terms of the query predicate are also specified
+      // if the terms of the query predicate are also specified
       if (!onlyPredName)
       {
-          // get term name
+        // get term name
         for (int i = 0; i < 2; i++)
         {
           if (i == 0) delimit[0] = ',';
           else        delimit[0] = ')';
           while (Util::substr(pred, cur, term, delimit))
           {
-              // this is a constant
+            // this is a constant
             if (isupper(term.at(0)) || term.at(0) == '"' || isdigit(term.at(0)))
             {
               termId = domain->getConstantId(term.c_str());
@@ -259,26 +260,26 @@ bool createComLineQueryPreds(const string& queryPredsStr,
       }
       else
       {   // if only the predicate name is specified
-          // HACK DEBUG
+        // HACK DEBUG
         //(*allPredGndingsAreQueries)[ptemplate->getId()] = true;
         for (int i = 0; i < ptemplate->getNumTerms(); i++)
           ppred.appendTerm(new Term(--varIdCnt, (void*)&ppred, true));
       }  
 
-        // Check if number of terms is correct
+      // Check if number of terms is correct
       if (ppred.getNumTerms() != ptemplate->getNumTerms())
       {
         cout << "ERROR: " << predName << " requires " << ptemplate->getNumTerms()
-             << " terms but given " << ppred.getNumTerms() << endl;
+                 << " terms but given " << ppred.getNumTerms() << endl;
         ret = false;
       }
       if (!ret) continue;
-    
+
       ///////////////////// create all groundings of predicate ///////////////
       vtiArr = NULL;
       ppred.createVarsTypeIdArr(vtiArr);
 
-        // If a ground predicate was specified on command line
+      // If a ground predicate was specified on command line
       if (vtiArr->size() <= 1)
       {
         assert(ppred.isGrounded());
@@ -287,9 +288,9 @@ bool createComLineQueryPreds(const string& queryPredsStr,
 
         if (negated) ppred.setSense(false);
         predArray->append(new Predicate(ppred));
-        
+
         GroundPredicate* gndPred = new GroundPredicate(&ppred);
-          // If just printing to file, then all values must be known
+        // If just printing to file, then all values must be known
         if (printToFile) assert(tv != UNKNOWN);
         if (tv == UNKNOWN)
         {
@@ -297,16 +298,16 @@ bool createComLineQueryPreds(const string& queryPredsStr,
         }
         else
         {
-            // If just printing to file
+          // If just printing to file
           if (printToFile)
           {
-              // If trueQueries is given as argument, then get prob. from there
+            // If trueQueries is given as argument, then get prob. from there
             if (trueQueries)
             {
               double prob = 0.0;
               if (domain->getDB()->getEvidenceStatus(&ppred))
               {
-                  // Don't print out evidence atoms
+                // Don't print out evidence atoms
                 continue;
                 //prob = (tv == TRUE) ? 1.0 : 0.0;
               }
@@ -315,9 +316,9 @@ bool createComLineQueryPreds(const string& queryPredsStr,
                 int found = trueQueries->find(gndPred);
                 if (found >= 0) prob = (*trueProbs)[found];
                 else
-                    // Uniform smoothing
+                  // Uniform smoothing
                   prob = (prob*10000+1/2.0)/(10000+1.0);
-              
+
               }
               gndPred->print(out, domain); out << " " << prob << endl;
             }
@@ -325,10 +326,10 @@ bool createComLineQueryPreds(const string& queryPredsStr,
             {
               if (amapPos) //if show postive ground query predicates only
               {
-      		    if (tv == TRUE)
+                if (tv == TRUE)
                 {
-      	  	      ppred.printWithStrVar(out, domain);
-      	  	      out << endl;
+                  ppred.printWithStrVar(out, domain);
+                  out << endl;
                 }
               }
               else //print all ground query predicates
@@ -353,11 +354,11 @@ bool createComLineQueryPreds(const string& queryPredsStr,
         for (int i = 1; i < vtiArr->size(); i++)
         {
           const Array<int>* cons =
-            domain->getConstantsByType((*vtiArr)[i]->typeId);
+              domain->getConstantsByType((*vtiArr)[i]->typeId);
           acc.appendArray(cons);
         } 
 
-          // form all groundings of the predicate
+        // form all groundings of the predicate
         Array<int> constIds;
         while (acc.getNextCombination(constIds))
         {
@@ -371,11 +372,11 @@ bool createComLineQueryPreds(const string& queryPredsStr,
 
           // at this point the predicate is grounded
           assert(!db->isClosedWorld(ppred.getId()));
- 
+
           TruthValue tv = db->getValue(&ppred);        
           GroundPredicate* gndPred = new GroundPredicate(&ppred);
 
-            // If just printing to file, then all values must be known
+          // If just printing to file, then all values must be known
           if (printToFile) assert(tv != UNKNOWN);
           if (tv == UNKNOWN)
           {
@@ -383,16 +384,16 @@ bool createComLineQueryPreds(const string& queryPredsStr,
           }
           else
           {
-              // If just printing to file
+            // If just printing to file
             if (printToFile)
             {
-                // If trueQueries is given as argument, then get prob. from there
+              // If trueQueries is given as argument, then get prob. from there
               if (trueQueries)
               {
                 double prob = 0.0;
                 if (domain->getDB()->getEvidenceStatus(&ppred))
                 {
-                    // Don't print out evidence atoms
+                  // Don't print out evidence atoms
                   continue;
                   //prob = (tv == TRUE) ? 1.0 : 0.0;
                 }
@@ -401,10 +402,10 @@ bool createComLineQueryPreds(const string& queryPredsStr,
                   int found = trueQueries->find(gndPred);
                   if (found >= 0) prob = (*trueProbs)[found];
                   else
-                      // Uniform smoothing
+                    // Uniform smoothing
                     prob = (prob*10000+1/2.0)/(10000+1.0);
                 }
-                  // Uniform smoothing
+                // Uniform smoothing
                 //prob = (prob*10000+1/2.0)/(10000+1.0);
                 gndPred->print(out, domain); out << " " << prob << endl;
               }
@@ -428,14 +429,14 @@ bool createComLineQueryPreds(const string& queryPredsStr,
             }
             else // Building queries
             {
-                //if (tv == TRUE) gndPred->setProbTrue(1);
-          	    //else            gndPred->setProbTrue(0);
+              //if (tv == TRUE) gndPred->setProbTrue(1);
+              //else            gndPred->setProbTrue(0);
               if (knownQueries->append(gndPred) < 0) delete gndPred;  
             }
           }
         }
       }
-      
+
       ppred.deleteVarsTypeIdArr(vtiArr);
       predicate++;
     } // for each query pred on command line
@@ -448,10 +449,10 @@ bool createComLineQueryPreds(const string& queryPredsStr,
 
   if (!printToFile)
   {
-  	queries->compress();
-  	knownQueries->compress();
+    queries->compress();
+    knownQueries->compress();
   }
-  
+
   return ret;
 }
 
@@ -468,9 +469,9 @@ bool createComLineQueryPreds(const string& queryPredsStr,
                              Array<Array<Predicate* >* >* queryConjs)
 {
   return createComLineQueryPreds(queryPredsStr, domain, db,
-                             	 queries, knownQueries,
+                                 queries, knownQueries,
                                  allPredGndingsAreQueries,
-                             	 false, cout, false, NULL, NULL, queryConjs);
+                                 false, cout, false, NULL, NULL, queryConjs);
 }
 
 /**
@@ -488,24 +489,24 @@ bool extractPredNames(string preds, const string* queryFile,
 { 
   predNames.clear();
 
-    // first extract the query pred names specified on command line
+  // first extract the query pred names specified on command line
   string::size_type cur = 0, ws, ltparen;
   string qpred, predName;
-  
+
   if (preds.length() > 0)
   {
     preds.append(" "); //terminate preds with a whitespace
-    
-      //replace the comma or semi-colon between query predicates with ' '
+
+    //replace the comma or semi-colon between query predicates with ' '
     int balparen = 0;
     for (unsigned int i = 0; i < preds.length(); i++)
     {
       if (preds.at(i) == '(')      balparen++;
       else if (preds.at(i) == ')') balparen--;
       else if ((preds.at(i) == ',' || preds.at(i) == ';') &&
-               balparen == 0) preds.at(i) = ' ';
+          balparen == 0) preds.at(i) = ' ';
     }
-    
+
     while (preds.at(cur) == ' ') cur++;
     while (true)
     {
@@ -514,10 +515,10 @@ bool extractPredNames(string preds, const string* queryFile,
       qpred = preds.substr(cur,ws-cur+1);
       cur = ws+1;
       while (cur < preds.length() &&
-             (preds.at(cur) == ' ' || preds.at(cur) == '^' ||
+          (preds.at(cur) == ' ' || preds.at(cur) == '^' ||
               preds.at(cur) == '!')) cur++;
       ltparen = qpred.find("(",0);
-      
+
       if (ltparen == string::npos) 
       { 
         ws = qpred.find(" ");
@@ -526,14 +527,14 @@ bool extractPredNames(string preds, const string* queryFile,
       }
       else
         predName = qpred.substr(0,ltparen);
-      
+
       predNames.append(predName);
     }
   }
 
   if (queryFile == NULL || queryFile->length() == 0) return true;
 
-    // next extract query predicates specified in query file  
+  // next extract query predicates specified in query file
   ifstream in((*queryFile).c_str());
   if (!in.good())
   {
@@ -545,7 +546,7 @@ bool extractPredNames(string preds, const string* queryFile,
   {
     cur = 0;
     while (cur < buffer.length() &&
-           (buffer.at(cur) == ' ' || buffer.at(cur) == '^' ||
+        (buffer.at(cur) == ' ' || buffer.at(cur) == '^' ||
             buffer.at(cur) == '!')) cur++;
     ltparen = buffer.find("(", cur);
     if (ltparen == string::npos) continue;
@@ -604,7 +605,7 @@ void setsrand()
 } 
 
 
-  //copy srcFile to dstFile, & append '#include "dbFiles"' to latter
+//copy srcFile to dstFile, & append '#include "dbFiles"' to latter
 void copyFileAndAppendDbFile(const string& srcFile, string& dstFile, 
                              const Array<string>& dbFilesArr,
                              const Array<string>& constFilesArr)
@@ -613,7 +614,7 @@ void copyFileAndAppendDbFile(const string& srcFile, string& dstFile,
   ifstream in(srcFile.c_str());
   if (!out.good()) { cout<<"ERROR: failed to open "<<dstFile<<endl;exit(-1);}
   if (!in.good()) { cout<<"ERROR: failed to open "<<srcFile<<endl;exit(-1);}
-  
+
   string buffer;
   while(getline(in, buffer)) out << buffer << endl;
   in.close();
@@ -636,7 +637,7 @@ bool checkQueryPredsNotInClosedWorldPreds(const StringHashArray& qpredNames,
     if (cwPredNames.contains(qpredNames[i]))
     {
       cout << "ERROR: query predicate " << qpredNames[i] 
-           << " cannot be specified as closed world" << endl; 
+                                                      << " cannot be specified as closed world" << endl;
       ok = false;
     }
   return ok;
@@ -687,10 +688,10 @@ bool createQueryFilePreds(const string& queryFile,
   ifstream in(queryFile.c_str());
   char delimit[2]; delimit[1] = '\0';
 
-    // for each query formula
+  // for each query formula
   while (getline(in, predConj))
   {
-      // replace the ^ with '\n'
+    // replace the ^ with '\n'
     int balparen = 0;
     for (unsigned int i = 0; i < predConj.length(); i++)
     {
@@ -712,7 +713,7 @@ bool createQueryFilePreds(const string& queryFile,
 
     Array<Predicate* >* predArray = new Array<Predicate*>;
     queryConjs->append(predArray);
-      // for each query pred on command line
+    // for each query pred on command line
     while (getline(iss2, pred))
     {
       pred = Util::trim(pred);
@@ -722,42 +723,42 @@ bool createQueryFilePreds(const string& queryFile,
       cur = 0;
       bool negated = false;
 
-        // find if pred is negated
+      // find if pred is negated
       if (pred.at(0) == '!')
       {
         negated = true;
         pred.at(0) = ' ';
         pred = Util::trim(pred);
       }
-        // get predicate name
+      // get predicate name
       if (!Util::substr(pred, cur, predName, "("))
       {
         predName = pred;
         onlyPredName = true;
       }
-    
-        // Predicate must be in the domain
+
+      // Predicate must be in the domain
       ptemplate = domain->getPredicateTemplate(predName.c_str());
       if (ptemplate == NULL)
       {
         cout << "ERROR: Cannot find command line query predicate" << predName 
-             << " in domain." << endl;
+            << " in domain." << endl;
         ret = false;
         continue;
       }
       Predicate ppred(ptemplate);
 
-        // if the terms of the query predicate are also specified
+      // if the terms of the query predicate are also specified
       if (!onlyPredName)
       {
-          // get term name
+        // get term name
         for (int i = 0; i < 2; i++)
         {
           if (i == 0) delimit[0] = ',';
           else        delimit[0] = ')';
           while (Util::substr(pred, cur, term, delimit))
           {
-              // this is a constant
+            // this is a constant
             if (isupper(term.at(0)) || term.at(0) == '"' || isdigit(term.at(0)))
             {
               termId = domain->getConstantId(term.c_str());
@@ -783,26 +784,26 @@ bool createQueryFilePreds(const string& queryFile,
       }
       else
       {   // if only the predicate name is specified
-          // HACK DEBUG
+        // HACK DEBUG
         //(*allPredGndingsAreQueries)[ptemplate->getId()] = true;
         for (int i = 0; i < ptemplate->getNumTerms(); i++)
           ppred.appendTerm(new Term(--varIdCnt, (void*)&ppred, true));
       }  
 
-        // Check if number of terms is correct
+      // Check if number of terms is correct
       if (ppred.getNumTerms() != ptemplate->getNumTerms())
       {
         cout << "ERROR: " << predName << " requires " << ptemplate->getNumTerms()
-             << " terms but given " << ppred.getNumTerms() << endl;
+                 << " terms but given " << ppred.getNumTerms() << endl;
         ret = false;
       }
       if (!ret) continue;
-    
+
       ///////////////////// create all groundings of predicate ///////////////
       vtiArr = NULL;
       ppred.createVarsTypeIdArr(vtiArr);
 
-        // If a ground predicate was specified on command line
+      // If a ground predicate was specified on command line
       if (vtiArr->size() <= 1)
       {
         assert(ppred.isGrounded());
@@ -811,9 +812,9 @@ bool createQueryFilePreds(const string& queryFile,
 
         if (negated) ppred.setSense(false);
         predArray->append(new Predicate(ppred));
-        
+
         GroundPredicate* gndPred = new GroundPredicate(&ppred);
-          // If just printing to file, then all values must be known
+        // If just printing to file, then all values must be known
         if (printToFile) assert(tv != UNKNOWN);
         if (tv == UNKNOWN)
         {
@@ -821,16 +822,16 @@ bool createQueryFilePreds(const string& queryFile,
         }
         else
         {
-            // If just printing to file
+          // If just printing to file
           if (printToFile)
           {
-              // If trueQueries is given as argument, then get prob. from there
+            // If trueQueries is given as argument, then get prob. from there
             if (trueQueries)
             {
               double prob = 0.0;
               if (domain->getDB()->getEvidenceStatus(&ppred))
               {
-                  // Don't print out evidence atoms
+                // Don't print out evidence atoms
                 continue;
                 //prob = (tv == TRUE) ? 1.0 : 0.0;
               }
@@ -839,9 +840,9 @@ bool createQueryFilePreds(const string& queryFile,
                 int found = trueQueries->find(gndPred);
                 if (found >= 0) prob = (*trueProbs)[found];
                 else
-                    // Uniform smoothing
+                  // Uniform smoothing
                   prob = (prob*10000+1/2.0)/(10000+1.0);
-              
+
               }
               gndPred->print(out, domain); out << " " << prob << endl;
             }
@@ -877,11 +878,11 @@ bool createQueryFilePreds(const string& queryFile,
         for (int i = 1; i < vtiArr->size(); i++)
         {
           const Array<int>* cons =
-            domain->getConstantsByType((*vtiArr)[i]->typeId);
+              domain->getConstantsByType((*vtiArr)[i]->typeId);
           acc.appendArray(cons);
         } 
 
-          // form all groundings of the predicate
+        // form all groundings of the predicate
         Array<int> constIds;
         while (acc.getNextCombination(constIds))
         {
@@ -895,11 +896,11 @@ bool createQueryFilePreds(const string& queryFile,
 
           // at this point the predicate is grounded
           assert(!db->isClosedWorld(ppred.getId()));
- 
+
           TruthValue tv = db->getValue(&ppred);        
           GroundPredicate* gndPred = new GroundPredicate(&ppred);
 
-            // If just printing to file, then all values must be known
+          // If just printing to file, then all values must be known
           if (printToFile) assert(tv != UNKNOWN);
           if (tv == UNKNOWN)
           {
@@ -907,16 +908,16 @@ bool createQueryFilePreds(const string& queryFile,
           }
           else
           {
-              // If just printing to file
+            // If just printing to file
             if (printToFile)
             {
-                // If trueQueries is given as argument, then get prob. from there
+              // If trueQueries is given as argument, then get prob. from there
               if (trueQueries)
               {
                 double prob = 0.0;
                 if (domain->getDB()->getEvidenceStatus(&ppred))
                 {
-                    // Don't print out evidence atoms
+                  // Don't print out evidence atoms
                   continue;
                   //prob = (tv == TRUE) ? 1.0 : 0.0;
                 }
@@ -925,10 +926,10 @@ bool createQueryFilePreds(const string& queryFile,
                   int found = trueQueries->find(gndPred);
                   if (found >= 0) prob = (*trueProbs)[found];
                   else
-                      // Uniform smoothing
+                    // Uniform smoothing
                     prob = (prob*10000+1/2.0)/(10000+1.0);
                 }
-                  // Uniform smoothing
+                // Uniform smoothing
                 //prob = (prob*10000+1/2.0)/(10000+1.0);
                 gndPred->print(out, domain); out << " " << prob << endl;
               }
@@ -952,14 +953,14 @@ bool createQueryFilePreds(const string& queryFile,
             }
             else // Building queries
             {
-                //if (tv == TRUE) gndPred->setProbTrue(1);
-                //else            gndPred->setProbTrue(0);
+              //if (tv == TRUE) gndPred->setProbTrue(1);
+              //else            gndPred->setProbTrue(0);
               if (knownQueries->append(gndPred) < 0) delete gndPred;  
             }
           }
         }
       }
-      
+
       ppred.deleteVarsTypeIdArr(vtiArr);
       predicate++;
     } // for each query pred on command line
@@ -975,7 +976,7 @@ bool createQueryFilePreds(const string& queryFile,
     queries->compress();
     knownQueries->compress();
   }
-  
+
   in.close();
   return ret;
 }
@@ -1014,18 +1015,18 @@ int buildInference(Inference*& inference, Domain*& domain,
   Array<string> constFilesArr;
   Array<string> evidenceFilesArr;
 
-  
+
   //the second .mln file to the last one in ainMLNFiles _may_ be used 
   //to hold constants, so they are held in constFilesArr. They will be
   //included into the first .mln file.
 
-    //extract .mln, .db file names
+  //extract .mln, .db file names
   extractFileNames(ainMLNFiles, constFilesArr);
   assert(constFilesArr.size() >= 1);
   inMLNFile.append(constFilesArr[0]);
   constFilesArr.removeItem(0);
   extractFileNames(aevidenceFiles, evidenceFilesArr);
-  
+
   if (aqueryPredsStr) queryPredsStr.append(aqueryPredsStr);
   if (aqueryFile) queryFile.append(aqueryFile);
 
@@ -1035,8 +1036,8 @@ int buildInference(Inference*& inference, Domain*& domain,
   if (agibbsInfer && agibbsTestConvergence && amcmcNumChains < 2) 
   {
     cout << "ERROR: If testing for convergence, there must be at least 2 "
-         << "MCMC chains in Gibbs sampling" 
-         << endl; return -1;
+        << "MCMC chains in Gibbs sampling"
+        << endl; return -1;
   }
 
   if (adecisionInfer && !abpInfer && !aefbpInfer)
@@ -1044,14 +1045,14 @@ int buildInference(Inference*& inference, Domain*& domain,
     aefbpInfer = true;
   }
   else if (!asimtpInfer && !amapPos && !amapAll && !agibbsInfer &&
-           !amcsatInfer && !aHybrid && !aSA && !abpInfer && !aefbpInfer &&
-           !aoutputNetwork)
+      !amcsatInfer && !aHybrid && !aSA && !abpInfer && !aefbpInfer &&
+      !aoutputNetwork)
   {
-      // If nothing specified, use MC-SAT
+    // If nothing specified, use MC-SAT
     amcsatInfer = true;
   }
 
-    //extract names of all query predicates
+  //extract names of all query predicates
   if (queryPredsStr.length() > 0 || queryFile.length() > 0)
   {
     if (!extractPredNames(queryPredsStr, &queryFile, queryPredNames)) return -1;
@@ -1063,7 +1064,7 @@ int buildInference(Inference*& inference, Domain*& domain,
   if (amwsTries <= 0)
   { cout << "ERROR: mwsTries must be positive" << endl; return -1; }
 
-    //extract names of open-world evidence predicates
+  //extract names of open-world evidence predicates
   if (aOpenWorldPredsStr)
   {
     if (!extractPredNames(string(aOpenWorldPredsStr), NULL, owPredNames)) 
@@ -1071,7 +1072,7 @@ int buildInference(Inference*& inference, Domain*& domain,
     assert(owPredNames.size() > 0);
   }
 
-    //extract names of closed-world non-evidence predicates
+  //extract names of closed-world non-evidence predicates
   if (aClosedWorldPredsStr)
   {
     if (!extractPredNames(string(aClosedWorldPredsStr), NULL, cwPredNames)) 
@@ -1090,30 +1091,30 @@ int buildInference(Inference*& inference, Domain*& domain,
   // non-evidence in -o -> warning (this is default)
 
 
-    // Set SampleSat parameters
+  // Set SampleSat parameters
   SampleSatParams* ssparams = new SampleSatParams;
   ssparams->lateSa = assLateSa;
   ssparams->saRatio = assSaRatio;
   ssparams->saTemp = assSaTemp;
 
-    // Set MaxWalksat parameters
+  // Set MaxWalksat parameters
   MaxWalksatParams* mwsparams = new MaxWalksatParams;
   mwsparams->ssParams = ssparams;
   mwsparams->maxSteps = amwsMaxSteps;
   mwsparams->maxTries = amwsTries;
   mwsparams->targetCost = amwsTargetWt;
   mwsparams->hard = amwsHard;
-    // numSolutions only applies when used in SampleSat.
-    // When just MWS, this is set to 1
+  // numSolutions only applies when used in SampleSat.
+  // When just MWS, this is set to 1
   mwsparams->numSolutions = amwsNumSolutions;
   mwsparams->heuristic = amwsHeuristic;
   mwsparams->tabuLength = amwsTabuLength;
   mwsparams->lazyLowState = amwsLazyLowState;
 
-    // Set MC-SAT parameters
+  // Set MC-SAT parameters
   MCSatParams* msparams = new MCSatParams;
   msparams->mwsParams = mwsparams;
-    // MC-SAT needs only one chain
+  // MC-SAT needs only one chain
   msparams->numChains          = 1;
   msparams->burnMinSteps       = amcmcBurnMinSteps;
   msparams->burnMaxSteps       = amcmcBurnMaxSteps;
@@ -1122,7 +1123,7 @@ int buildInference(Inference*& inference, Domain*& domain,
   msparams->maxSeconds         = amcmcMaxSeconds;
   //msparams->numStepsEveryMCSat = amcsatNumStepsEveryMCSat;
 
-    // Set Gibbs parameters
+  // Set Gibbs parameters
   GibbsParams* gibbsparams = new GibbsParams;
   gibbsparams->mwsParams    = mwsparams;
   gibbsparams->numChains    = amcmcNumChains;
@@ -1138,8 +1139,8 @@ int buildInference(Inference*& inference, Domain*& domain,
   gibbsparams->walksatType     = agibbsWalksatType;
   gibbsparams->testConvergence = agibbsTestConvergence;
   gibbsparams->samplesPerTest  = agibbsSamplesPerTest;
-  
-    // Set Sim. Tempering parameters
+
+  // Set Sim. Tempering parameters
   SimulatedTemperingParams* stparams = new SimulatedTemperingParams;
   stparams->mwsParams    = mwsparams;
   stparams->numChains    = amcmcNumChains;
@@ -1153,7 +1154,7 @@ int buildInference(Inference*& inference, Domain*& domain,
   stparams->numST       = asimtpNumST;
   stparams->numSwap     = asimtpNumSwap;
 
-    // Set BP parameters
+  // Set BP parameters
   BPParams* bpparams = new BPParams;
   bpparams->maxSteps               = amcmcMaxSteps;
   bpparams->maxSeconds             = amcmcMaxSeconds;
@@ -1169,24 +1170,24 @@ int buildInference(Inference*& inference, Domain*& domain,
   bpparams->outputNetwork          = aoutputNetwork;  
   if (anoHCPredsStr)
   {
-  	(bpparams->noHCPredsStr).append(anoHCPredsStr);
+    (bpparams->noHCPredsStr).append(anoHCPredsStr);
   }
 
   //////////////////// read in clauses & evidence predicates //////////////////
 
   cout << "Reading formulas and evidence predicates..." << endl;
 
-    // Copy inMLNFile to workingMLNFile & app '#include "evid.db"'
+  // Copy inMLNFile to workingMLNFile & app '#include "evid.db"'
   string::size_type bslash = inMLNFile.rfind("/");
   string tmp = (bslash == string::npos) ? 
-               inMLNFile:inMLNFile.substr(bslash+1,inMLNFile.length()-bslash-1);
+      inMLNFile:inMLNFile.substr(bslash+1,inMLNFile.length()-bslash-1);
   char buf[100];
   sprintf(buf, "%s%d%s", tmp.c_str(), getpid(), ZZ_TMP_FILE_POSTFIX);
   wkMLNFile = buf;
   copyFileAndAppendDbFile(inMLNFile, wkMLNFile,
                           evidenceFilesArr, constFilesArr);
 
-    // Parse wkMLNFile, and create the domain, MLN, database
+  // Parse wkMLNFile, and create the domain, MLN, database
   domain = new Domain;
   mln = new MLN();
   bool addUnitClauses = false;
@@ -1197,8 +1198,8 @@ int buildInference(Inference*& inference, Domain*& domain,
   //bool allPredsExceptQueriesAreCW = owPredNames.empty();
   Domain* forCheckingPlusTypes = NULL;
 
-    // Parse as if lazy inference is set to true to set evidence atoms in DB
-    // If lazy is not used, this is removed from DB
+  // Parse as if lazy inference is set to true to set evidence atoms in DB
+  // If lazy is not used, this is removed from DB
   cout<<wkMLNFile.c_str()<<endl;
   if (!runYYParser(mln, domain, wkMLNFile.c_str(), allPredsExceptQueriesAreCW, 
                    &owPredNames, &cwPredNames, &queryPredNames, addUnitClauses, 
@@ -1223,20 +1224,20 @@ int buildInference(Inference*& inference, Domain*& domain,
       cout << endl;
     }
   }
-    //////////////////////////// run inference /////////////////////////////////
+  //////////////////////////// run inference /////////////////////////////////
 
-    ///////////////////////// read & create query predicates ///////////////////
+  ///////////////////////// read & create query predicates ///////////////////
   Array<int> allPredGndingsAreQueries;
   Array<Array<Predicate* >* >* queryFormulas =  new Array<Array<Predicate*> *>;
 
-    // Eager inference: Build the queries for the mrf
-    // Lazy version evaluates the query string / file when printing out
+  // Eager inference: Build the queries for the mrf
+  // Lazy version evaluates the query string / file when printing out
   if (!aLazy)
   {
     if (queryFile.length() > 0)
     {
       cout << "Reading query predicates that are specified in query file..."
-           << endl;
+          << endl;
       bool ok = createQueryFilePreds(queryFile, domain, domain->getDB(),
                                      &queries, &knownQueries, queryFormulas);
       if (!ok) { cout<<"Failed to create query predicates."<<endl; exit(-1); }
@@ -1250,24 +1251,24 @@ int buildInference(Inference*& inference, Domain*& domain,
       GroundPredicateHashArray unePreds;
       GroundPredicateHashArray knePreds;
       bool ok = createComLineQueryPreds(queryPredsStr, domain, 
-                                  domain->getDB(), &unePreds, &knePreds,
-                                  &allPredGndingsAreQueries, queryFormulas);
+                                        domain->getDB(), &unePreds, &knePreds,
+                                        &allPredGndingsAreQueries, queryFormulas);
       if (!ok) { cout<<"Failed to create query predicates."<<endl; exit(-1); }
       Array<Predicate*>* indexedGndings = new Array<Predicate*>();
       domain->getDB()->getIndexedGndings(indexedGndings,mln->getClause(0)->getPredicate(0),true,false);
       for(int i=0;i<indexedGndings->size();i++)
       {
-    	  (*indexedGndings)[i]->print(cout,domain);
-    	  cout<<endl;
+        (*indexedGndings)[i]->print(cout,domain);
+        cout<<endl;
       }
       for(int i=0;i<queryFormulas->size();i++)
       {
-    	  for(int j=0;j<(*queryFormulas)[i]->size();j++)
-    	  {
-    		  (*(*queryFormulas)[i])[j]->print(cout,domain);
-    		  cout<<"  ";
-    	  }
-    	  cout<<endl;
+        for(int j=0;j<(*queryFormulas)[i]->size();j++)
+        {
+          (*(*queryFormulas)[i])[j]->print(cout,domain);
+          cout<<"  ";
+        }
+        cout<<endl;
       }
       if (aisQueryEvidence)
       {
@@ -1288,7 +1289,7 @@ int buildInference(Inference*& inference, Domain*& domain,
         for (int predno = 0; predno < knePreds.size(); predno++) 
         {
           TruthValue origValue 
-              = domain->getDB()->setValue(knePreds[predno], UNKNOWN);
+          = domain->getDB()->setValue(knePreds[predno], UNKNOWN);
           queryPredValues.append(origValue);
         }
         queries = knePreds;
@@ -1302,14 +1303,14 @@ int buildInference(Inference*& inference, Domain*& domain,
   }
   for(int i=0;i<queries.size();i++)
   {
-	  queries[i]->print(cout,domain);
-	  cout<<endl;
+    queries[i]->print(cout,domain);
+    cout<<endl;
   }
   bool trackClauseTrueCnts = false;
   VariableState* state = NULL;
   HVariableState* hstate = NULL;
   FactorGraph* factorGraph = NULL;
-  
+
   if (abpInfer || aefbpInfer || aoutputNetwork)
   {
     factorGraph = new FactorGraph(bpparams->lifted, bpparams->useHC,
@@ -1322,31 +1323,31 @@ int buildInference(Inference*& inference, Domain*& domain,
   }
   else
   {
-      // Create inference algorithm and state based on queries and mln / domain
+    // Create inference algorithm and state based on queries and mln / domain
     bool markHardGndClauses = true;
     bool trackParentClauseWts = false;
     if (aHybrid)
     {
-        // Create inference algorithm and state based on queries and mln / domain
+      // Create inference algorithm and state based on queries and mln / domain
       bool markHardGndClauses = true;
       bool trackParentClauseWts = false;
-	  hstate = new HVariableState(&queries, NULL, NULL,
-		                          &allPredGndingsAreQueries,
-		                          markHardGndClauses,
-	                              trackParentClauseWts,
-		                          mln, domain, aLazy);
+      hstate = new HVariableState(&queries, NULL, NULL,
+                                  &allPredGndingsAreQueries,
+                                  markHardGndClauses,
+                                  trackParentClauseWts,
+                                  mln, domain, aLazy);
 
-	  //hstate->LoadContGroundedMLN(aContPartFile);
-        // Ground out cont. formulas
+      //hstate->LoadContGroundedMLN(aContPartFile);
+      // Ground out cont. formulas
       hstate->LoadContMLN();
 
-	  //hstate->WriteGndPredIdxMap(aGndPredIdxMapFile);
-	  hstate->bMaxOnly_ = (amapPos || amapAll);
+      //hstate->WriteGndPredIdxMap(aGndPredIdxMapFile);
+      hstate->bMaxOnly_ = (amapPos || amapAll);
     }
     else
     {
-        // Lazy version: queries and allPredGndingsAreQueries are empty,
-        // markHardGndClause and trackParentClauseWts are not used
+      // Lazy version: queries and allPredGndingsAreQueries are empty,
+      // markHardGndClause and trackParentClauseWts are not used
       state = new VariableState(&queries, NULL, NULL,
                                 &allPredGndingsAreQueries,
                                 markHardGndClauses,
@@ -1364,22 +1365,31 @@ int buildInference(Inference*& inference, Domain*& domain,
       hstate->setInitFromEvi(true);
     }
 
-      // MAP inference, MC-SAT, Gibbs or Sim. Temp.
+    // MAP inference, MC-SAT, Gibbs or Sim. Temp.
     if (amapPos || amapAll || amcsatInfer || agibbsInfer || asimtpInfer ||
-        aHybrid || aSA)
+        aHybrid || aSA || aILPGurobi)
     {
       if ((amapPos || amapAll) && !aHybrid)
-      { // MaxWalkSat
+      {
+        if (aILPGurobi)
+        {
+          // Gurobi ILP Inference
+          inference = new ILP_Gurobi(state, aSeed, trackClauseTrueCnts);
+        }
+        else
+        {
+          // MaxWalkSat
           // When standalone MWS, numSolutions is always 1
           // (maybe there is a better way to do this?)
-        mwsparams->numSolutions = 1;
-        inference = new MaxWalkSat(state, aSeed, trackClauseTrueCnts, mwsparams);
+          mwsparams->numSolutions = 1;
+          inference = new MaxWalkSat(state, aSeed, trackClauseTrueCnts, mwsparams);
+        }
       }
       else if ((amapPos || amapAll) && aHybrid && !amcsatInfer && !aSA)
-	  {
+      {
         hstate->setProposalStdev(aProposalStdev);
-          // maximizing all the numeric terms individually by l-bfgs, 
-          // and cache the optimal solution for each term
+        // maximizing all the numeric terms individually by l-bfgs,
+        // and cache the optimal solution for each term
         hstate->optimizeIndividualNumTerm();
         mwsparams->numSolutions = 1;
         mwsparams->heuristic = HMWS;
@@ -1394,41 +1404,41 @@ int buildInference(Inference*& inference, Domain*& domain,
 
         if (aStartPt)
         {
-		  hstate->setInitFromEvi(true);
-		}
-	  }
-	  else if ((amapPos || amapAll) && aHybrid && !amcsatInfer && aSA)
-	  {
-		hstate->setProposalStdev(aProposalStdev);
-		mwsparams->numSolutions = 1;
-		mwsparams->heuristic = HSA;
-		inference = new HMaxWalkSat(hstate, aSeed, trackClauseTrueCnts,
+          hstate->setInitFromEvi(true);
+        }
+      }
+      else if ((amapPos || amapAll) && aHybrid && !amcsatInfer && aSA)
+      {
+        hstate->setProposalStdev(aProposalStdev);
+        mwsparams->numSolutions = 1;
+        mwsparams->heuristic = HSA;
+        inference = new HMaxWalkSat(hstate, aSeed, trackClauseTrueCnts,
                                     mwsparams);
 
-		HMaxWalkSat* p = (HMaxWalkSat*)inference;
-		//p->SetNoisePra(anumerator, adenominator);
-		p->setHeuristic(HSA);
-		p->setSATempDownRatio(aSATempDownRatio);
-		p->SetMaxSeconds(atof(aMaxSeconds));
-		p->SetSAInterval(saInterval);
-		if (aStartPt)
-		{
+        HMaxWalkSat* p = (HMaxWalkSat*)inference;
+        //p->SetNoisePra(anumerator, adenominator);
+        p->setHeuristic(HSA);
+        p->setSATempDownRatio(aSATempDownRatio);
+        p->SetMaxSeconds(atof(aMaxSeconds));
+        p->SetSAInterval(saInterval);
+        if (aStartPt)
+        {
           hstate->setInitFromEvi(true);
-		}
-	  }
-	  else if (aHybrid && amcsatInfer)
-	  {
-		cout << "Creating HMCSAT instance." << endl;
-		hstate->setProposalStdev(aProposalStdev);
-		if (aContSamples == NULL)
-		{
-			//cout << "Numeric sample file is error." <<endl;
-		}
-		inference = new HMCSAT(hstate, aSeed, trackClauseTrueCnts, msparams);
-		HMCSAT* p = (HMCSAT*) inference;
-		p->SetContSampleFile(aContSamples);
+        }
+      }
+      else if (aHybrid && amcsatInfer)
+      {
+        cout << "Creating HMCSAT instance." << endl;
+        hstate->setProposalStdev(aProposalStdev);
+        if (aContSamples == NULL)
+        {
+          //cout << "Numeric sample file is error." <<endl;
+        }
+        inference = new HMCSAT(hstate, aSeed, trackClauseTrueCnts, msparams);
+        HMCSAT* p = (HMCSAT*) inference;
+        p->SetContSampleFile(aContSamples);
         p->SetPrintVarsPerSample(aPrintSamplePerIteration);
-	  }
+      }
       else if (amcsatInfer && !aHybrid)
       { // MC-SAT
         inference = new MCSAT(state, aSeed, trackClauseTrueCnts, msparams,
@@ -1436,16 +1446,16 @@ int buildInference(Inference*& inference, Domain*& domain,
       }
       else if (asimtpInfer && !aHybrid)
       { // Simulated Tempering
-          // When MWS is used in Sim. Temp., numSolutions is always 1
-          // (maybe there is a better way to do this?)
+        // When MWS is used in Sim. Temp., numSolutions is always 1
+        // (maybe there is a better way to do this?)
         mwsparams->numSolutions = 1;
         inference = new SimulatedTempering(state, aSeed, trackClauseTrueCnts,
                                            stparams);
       }
       else if (agibbsInfer && !aHybrid)
       { // Gibbs sampling
-          // When MWS is used in Gibbs, numSolutions is always 1
-          // (maybe there is a better way to do this?)
+        // When MWS is used in Gibbs, numSolutions is always 1
+        // (maybe there is a better way to do this?)
         mwsparams->numSolutions = 1;
         inference = new GibbsSampler(state, aSeed, trackClauseTrueCnts,
                                      gibbsparams);
@@ -1454,8 +1464,8 @@ int buildInference(Inference*& inference, Domain*& domain,
   }
   return 1;
 }
- 
-  // Typedefs
+
+// Typedefs
 typedef hash_map<string, const Array<const char*>*, HashString, EqualString> 
 StringToStrArrayMap;
 
