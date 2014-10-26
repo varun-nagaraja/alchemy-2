@@ -1,0 +1,1 @@
+./bin/learnwts -g -i exdata/voting.mln -o exdata/voting-gen.mln -t exdata/voting-train.db -ne Democrat
