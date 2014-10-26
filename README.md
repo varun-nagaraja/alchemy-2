@@ -56,6 +56,17 @@ $ ./bin/infer -i exdata/voting-gen.mln -e exdata/voting-test.db -r exdata/voting
 
 You will need to execute `learnwts.sh` to generate `voting-gen.mln`
 
+## References
+The conversion of MAP inference in MLNs to an Integer Linear Program is based on
+```
+@inproceedings{noessner2013rockit,
+  title={RockIt: Exploiting Parallelism and Symmetry for MAP Inference in Statistical Relational Models.},
+  author={Noessner, Jan and Niepert, Mathias and Stuckenschmidt, Heiner},
+  booktitle={AAAI Workshop: Statistical Relational Artificial Intelligence.}
+  year={2013}
+}
+```
+
 ## License
 By using Alchemy, you agree to accept the license agreement in license.txt
 
