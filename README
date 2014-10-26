@@ -45,8 +45,16 @@ $ cp makefile_linux makefile
 Modify the makefile to set the Gurobi directory if it is not installed in the default places.
 
 ```
-$ make
+$ make all -j4
 ```
+
+## Usage
+To perform inference with Gurobi, pass the flags "-a -ilp" with the command line arguments. For example,
+```
+$ ./bin/infer -i exdata/voting-gen.mln -e exdata/voting-test.db -r exdata/voting-test-ilp.out -q Democrat -a -ilp
+```
+
+You will need to execute `learnwts.sh` to generate `voting-gen.mln`
 
 ## License
 By using Alchemy, you agree to accept the license agreement in license.txt
