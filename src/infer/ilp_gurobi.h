@@ -22,7 +22,8 @@ typedef hash_map<GroundClause*, GRBVar, HashGroundClause,
 
 class ILP_Gurobi : public SAT {
  public:
-  ILP_Gurobi(VariableState* state, int seed, const bool& trackClauseTrueCnts):SAT(state, seed, trackClauseTrueCnts){
+  ILP_Gurobi(VariableState* state, int seed,
+             const bool& trackClauseTrueCnts):SAT(state, seed, trackClauseTrueCnts){
     domain_ = (Domain*) state_->getDomain();
   }
 
@@ -49,6 +50,8 @@ class ILP_Gurobi : public SAT {
                                     true, predVals, addedClauses);
 
     copyValsFromGurobiToState(model);
+    double costOfFalseClauses = getCostOfFalseClauses();
+    cout << "Cost of false clauses: " << costOfFalseClauses << endl;
 
     delete model;
     delete predVals;
@@ -75,8 +78,8 @@ class ILP_Gurobi : public SAT {
    *                the model.
    */
   long double gurobi_maximize(GRBModel *model, Array<int>* clauseIndices,
-                                          VariableState* state, bool optimize,
-                                          PredicateValue* predVals, hash_map<int, bool>* addedClauses)
+                              VariableState* state, bool optimize,
+                              PredicateValue* predVals, hash_map<int, bool>* addedClauses)
   {
     long double maximizedCost = 0;
 
@@ -296,6 +299,47 @@ class ILP_Gurobi : public SAT {
     }
     state_->saveLowState();
     //state_->saveLowStateToDB();
+  }
+
+  double getCostOfFalseClauses()
+  {
+    double costOfFalseClauses = 0;
+    for (int clauseIdx = 0; clauseIdx < state_->getNumClauses(); clauseIdx++) {
+      // For each clause in the MRF, check if it is satisfied.
+      GroundClause* clause = state_->getGndClause(clauseIdx);
+      bool clauseValue = false;
+      for (int predId = 0; predId < clause->getNumGroundPredicates();
+          predId++) {
+        // The ground clause will only contain query and open world
+        // atoms. All evidence values are incorporated.
+        GroundPredicate* gp = (GroundPredicate*) clause->getGroundPredicate(
+            predId,
+            (GroundPredicateHashArray*) state_->getGndPredHashArrayPtr());
+
+        bool predValue = getProbability(gp);
+        if (!clause->getGroundPredicateSense(predId)) {
+          predValue = !predValue;
+        }
+
+        /* Since all formulas are disjunctions, the clause is true if
+         * any one predicate is true
+         */
+        if (predValue) {
+          clauseValue = true;
+          break;
+        }
+      }
+      /* If (wt is pos and unsatisfied) or (wt is neg and satisfied)
+       * then increment the violation cost of predicates in the clause by
+       * the weight of the clause.
+       */
+      double wt = clause->getWt();
+
+      if ((wt > 0 && !clauseValue) || (wt < 0 && clauseValue)) {
+        costOfFalseClauses += wt;
+      }
+    }
+    return costOfFalseClauses;
   }
 
  private:
