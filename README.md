@@ -12,14 +12,25 @@ Features added in this fork:
 
 You can install these using Homebrew on Mac or apt-get on Ubuntu.
 
-On OSX 
+###On OSX
+You just need to install gcc and perl. Bison and Flex must be present already.
 ```
-$ brew install gcc bison flex perl518
+$ brew install gcc perl518
 ```
 
-On Ubuntu
+###On Ubuntu
+Do not install Bison through apt-get as it will install the latest version (v3.0.2). Instead, build it manually.
 ```
-$ sudo apt-get install bison flex perl
+$ wget http://ftp.gnu.org/gnu/bison/bison-2.7.tar.gz
+$ tar xfz bison-2.7.tar.gz
+$ ./configure
+$ make
+$ sudo make install
+```
+
+Flex and Perl can be installed through apt-get.
+```
+$ sudo apt-get install flex perl
 ```
 
 ### Gurobi
