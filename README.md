@@ -43,13 +43,17 @@ You also need to obtain a license (Academic or otherwise) to be able to use it.
 ## Building
 On OSX
 ```
-$ cd path/to/alchemy-2/src
+$ cd path/to/alchemy-2/
+$ mkdir bin/obj
+$ cd src
 $ cp makefile_osx makefile
 ```
 
 On Linux
 ```
-$ cd path/to/alchemy-2/src
+$ cd path/to/alchemy-2/
+$ mkdir bin/obj
+$ cd src
 $ cp makefile_linux makefile
 ```
 
