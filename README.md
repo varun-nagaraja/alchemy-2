@@ -23,6 +23,7 @@ Do not install Bison through apt-get as it will install the latest version (v3.0
 ```
 $ wget http://ftp.gnu.org/gnu/bison/bison-2.7.tar.gz
 $ tar xfz bison-2.7.tar.gz
+$ cd bison-2.7
 $ ./configure
 $ make
 $ sudo make install
