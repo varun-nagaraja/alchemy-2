@@ -34,9 +34,11 @@ class ILP_Gurobi : public SAT {
     GRBEnv env = GRBEnv();
     //env.set(GRB_IntParam_OutputFlag, 0);
     //env.set(GRB_IntParam_Threads,1);
+    env.set(GRB_IntParam_Presolve,0);
     //env.set(GRB_DoubleParam_FeasibilityTol,1e-9);
+    //env.set(GRB_DoubleParam_OptimalityTol,1e-9);
     //env.set(GRB_DoubleParam_IntFeasTol,1e-9);
-    //env.set(GRB_DoubleParam_MIPGap,1e-9);
+    env.set(GRB_DoubleParam_MIPGap,1e-12);
     GRBModel *model = new GRBModel(env);
     Array<int>* clauseIndices = new Array<int>;
     for (int clauseIdx = 0; clauseIdx < state_->getNumClauses(); clauseIdx++)
@@ -49,8 +51,8 @@ class ILP_Gurobi : public SAT {
     maximizedCost = gurobi_maximize(model, clauseIndices, state_,
                                     true, predVals, addedClauses);
 
-    copyValsFromGurobiToState(model);
-    double costOfFalseClauses = getCostOfFalseClauses();
+    copyValsFromGurobiToState(predVals);
+    double costOfFalseClauses = getCostOfFalseClauses(predVals);
     cout << "Cost of false clauses: " << costOfFalseClauses << endl;
 
     delete model;
@@ -226,7 +228,7 @@ class ILP_Gurobi : public SAT {
         {
           maximizedCost = model->get(GRB_DoubleAttr_ObjVal);
           cout << "Gurobi Obj: " << maximizedCost << endl;
-          cout << "Num solutions: " << model->get(GRB_IntAttr_SolCount) << endl;
+          //cout << "Num solutions: " << model->get(GRB_IntAttr_SolCount) << endl;
         }
         else
         {
@@ -234,10 +236,13 @@ class ILP_Gurobi : public SAT {
           exit(1);
         }
 
-        // Select the solution with the maximum number of true predicates
+        // Select the solution with the minimum cost of false clauses. A maximum of top 5 solutions are checked for the minimum cost of false clauses.
+        // If there are two solutions with the same costs, then the pick the one with maximum number of true predicates.
         int bestSolNum = 0;
         int numPosInBestSol = 0;
-        for (int solNum = 0; solNum < model->get(GRB_IntAttr_SolCount); solNum++)
+        double bestCostOfFalseClauses = -1;
+        int maxNumSolsToCheck = min(5,model->get(GRB_IntAttr_SolCount));
+        for (int solNum = 0; solNum < maxNumSolsToCheck ; solNum++)
         {
           env.set(GRB_IntParam_SolutionNumber,solNum);
           int numPosInSol = 0;
@@ -245,20 +250,31 @@ class ILP_Gurobi : public SAT {
           for (int atomIdx = 0; atomIdx < state->getNumAtoms(); atomIdx++)
           {
             GroundPredicate* gp = state->getGndPred(atomIdx);
-            numPosInSol += predVars[gp].get(GRB_DoubleAttr_Xn) > 0.5 ? 1 : 0;
+            (*predVals)[gp] = predVars[gp].get(GRB_DoubleAttr_Xn) > 0.5 ? 1 : 0;
+            numPosInSol += (*predVals)[gp];
           }
-          if (numPosInSol > numPosInBestSol)
+          double costOfFalseClauses = getCostOfFalseClauses(predVals);
+          if (solNum == 0)
           {
             numPosInBestSol = numPosInSol;
             bestSolNum = solNum;
+            bestCostOfFalseClauses = costOfFalseClauses;
+          }
+          else if ((costOfFalseClauses < bestCostOfFalseClauses) || ((costOfFalseClauses == bestCostOfFalseClauses) && (numPosInSol > numPosInBestSol)))
+          {
+            numPosInBestSol = numPosInSol;
+            bestSolNum = solNum;
+            bestCostOfFalseClauses = costOfFalseClauses;
           }
         }
-
+        cout << "Setting to solution number " << bestSolNum << " (zero indexed)" << endl;
+        cout << "Num. of positive predicates in solution " << bestSolNum << ": " << numPosInBestSol << endl;
         env.set(GRB_IntParam_SolutionNumber,bestSolNum);
         // Get the current assignment for variables in the maximized state
         for (int atomIdx = 0; atomIdx < state->getNumAtoms(); atomIdx++)
         {
           GroundPredicate* gp = state->getGndPred(atomIdx);
+          // the double value can sometimes be slightly disturbed from 1 or 0
           (*predVals)[gp] = predVars[gp].get(GRB_DoubleAttr_Xn) > 0.5 ? 1 : 0;
         }
       }
@@ -278,17 +294,14 @@ class ILP_Gurobi : public SAT {
 
   }
 
-  void copyValsFromGurobiToState(GRBModel *model)
+  void copyValsFromGurobiToState(PredicateValue *predVals)
   {
     //Copy values from gurobi to state_
     for (int atomIdx = 0; atomIdx < state_->getNumAtoms(); atomIdx++)
     {
-      stringstream temp;
-      temp << "pred_" << atomIdx;
-      string predVarString = temp.str();
-      GRBVar x = model->getVarByName(predVarString);
-      // the double value can sometimes be slightly disturbed from 1 or 0
-      if (x.get(GRB_DoubleAttr_X) > 0.5)
+      GroundPredicate* gp = state_->getGndPred(atomIdx);
+      int predVal = (*predVals)[gp];
+      if (predVal == 1)
       {
         state_->setValueOfAtom(atomIdx + 1, true, false, -1);
       }
@@ -301,7 +314,7 @@ class ILP_Gurobi : public SAT {
     //state_->saveLowStateToDB();
   }
 
-  double getCostOfFalseClauses()
+  double getCostOfFalseClauses(PredicateValue *predVals)
   {
     double costOfFalseClauses = 0;
     for (int clauseIdx = 0; clauseIdx < state_->getNumClauses(); clauseIdx++) {
@@ -316,7 +329,7 @@ class ILP_Gurobi : public SAT {
             predId,
             (GroundPredicateHashArray*) state_->getGndPredHashArrayPtr());
 
-        bool predValue = getProbability(gp);
+        bool predValue = (*predVals)[gp];
         if (!clause->getGroundPredicateSense(predId)) {
           predValue = !predValue;
         }
