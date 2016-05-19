@@ -73,6 +73,16 @@ $ ./bin/infer -i exdata/voting-gen.mln -e exdata/voting-test.db -r exdata/voting
 You will need to execute `learnwts.sh` to generate `voting-gen.mln`
 
 ## References
+This piece of code was written as part of my following paper [pdf](http://www.umiacs.umd.edu/~varun/files/feedback-loop-GMCV14.pdf)
+```
+@inproceedings{nagaraja2014feedback,
+  title={Feedback Loop Between High Level Semantics and Low Level Vision},
+  author={Nagaraja, Varun K and Morariu, Vlad I and Davis, Larry S},
+  booktitle={Computer Vision-ECCV 2014 Workshops},
+  year={2014}
+}
+```
+
 The conversion of MAP inference in MLNs to an Integer Linear Program is based on
 ```
 @inproceedings{noessner2013rockit,
